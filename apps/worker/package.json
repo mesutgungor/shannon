@@ -31,7 +31,8 @@
     "./ai/reconciliation/labels": "./dist/ai/reconciliation/labels.js",
     "./ai/reconciliation/submit-validation": "./dist/ai/reconciliation/submit-validation.js",
     "./ai/reconciliation/refs": "./dist/ai/reconciliation/refs.js",
-    "./config": "./dist/config-parser.js"
+    "./config": "./dist/config-parser.js",
+    "./scanners": "./dist/scanners/index.js"
   },
   "scripts": {
     "build": "tsc",

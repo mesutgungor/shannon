@@ -414,6 +414,7 @@ export interface WorkerOptions {
   keepContainer?: boolean;
   authOnly?: boolean;
   validateModel?: boolean;
+  scanReport?: string;
   piAuthHostPath?: string;
 }
 
@@ -482,6 +483,12 @@ export function spawnWorker(opts: WorkerOptions): ChildProcess {
     args.push('-v', `${opts.outputDir}:/app/output`);
   }
 
+  // Scanner reports mount (SARIF, TruffleHog, Nuclei, Trivy, etc.)
+  if (opts.scanReport) {
+    const hostReportPath = path.resolve(opts.scanReport);
+    args.push('-v', `${hostReportPath}:/app/scan-reports:ro`);
+  }
+
   // Reuse the host's pi credentials: mount only the auth file, allowing token refreshes to persist.
   if (opts.piAuthHostPath) {
     args.push('-v', `${opts.piAuthHostPath}:${PI_AUTH_CONTAINER_PATH}`);
@@ -518,6 +525,9 @@ export function spawnWorker(opts: WorkerOptions): ChildProcess {
   }
   if (opts.validateModel) {
     args.push('--validate-model');
+  }
+  if (opts.scanReport) {
+    args.push('--scan-report', '/app/scan-reports');
   }
 
   // Inherit stderr so `docker run` daemon errors surface to the user;

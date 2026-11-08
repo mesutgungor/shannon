@@ -56,6 +56,7 @@ export interface StartArgs {
   php2shell: boolean;
   yes: boolean;
   version: string;
+  scanReport?: string;
 }
 
 const LAUNCH_STATE_SCHEMA_VERSION = 1 as const;
@@ -434,6 +435,7 @@ export async function start(args: StartArgs): Promise<void> {
     ...(args.keepContainer && { keepContainer: true }),
     ...(args.authOnly && { authOnly: true }),
     ...(args.validateModel && { validateModel: true }),
+    ...(args.scanReport && { scanReport: args.scanReport }),
     ...(shouldUsePiAuth() && { piAuthHostPath: resolveHostPiAuthPath() }),
   });
 

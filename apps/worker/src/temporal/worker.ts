@@ -28,7 +28,9 @@
  *   TEMPORAL_ADDRESS - Temporal server address (default: localhost:7233)
  */
 
+import { createHash } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Client, Connection, type WorkflowHandle, WorkflowNotFoundError } from '@temporalio/client';
@@ -38,10 +40,12 @@ import { DEFAULT_MODEL_SPEC } from '../ai/models.js';
 import { capellaTerminalStageLabel, isCapellaSafeFailureMessage } from '../ai/sast/capella/safe-failures.js';
 import { capellaActivities, mergeActivityRegistries } from '../ai/sast/capella/temporal/registry.js';
 import { CAPELLA_FORMAT_VERSION, CAPELLA_PROMPT_SET_VERSION } from '../ai/sast/capella/types.js';
+import type { SarifRef } from '../ai/sast/types.js';
 import { summarizeOperationalMetrics } from '../audit/operational-summary.js';
 import { sanitizeHostname } from '../audit/utils.js';
 import { distributeConfig, parseConfig } from '../config-parser.js';
 import { deliverablesDir, INTERNAL_DIR, resolveSessionJsonPath, STARTUP_ERROR_FILENAME } from '../paths.js';
+import { ScannerIngestionEngine, ShannonScannerBridge } from '../scanners/index.js';
 import { PentestError } from '../services/error-handling.js';
 import { isProviderFailureCategory } from '../types/errors.js';
 import {
@@ -252,6 +256,7 @@ interface CliArgs {
   pipelineTestingMode: boolean;
   authOnly: boolean;
   validateModel: boolean;
+  scanReportPath?: string;
   resumeFromWorkspace?: string;
 }
 
@@ -264,6 +269,7 @@ function showUsage(): void {
   console.log('  --task-queue <name>    Task queue name (required)');
   console.log('  --workflow-id <id>     Workflow ID selected by the Shannon CLI');
   console.log('  --config <path>        Configuration file path');
+  console.log('  --scan-report <path>   Scan report file or directory to ingest');
   console.log('  --workspace <name>     Resume from existing workspace');
   console.log('  --output <path>        Stable mounted path for final customer report copies');
   console.log('  --pipeline-testing     Use minimal prompts for fast testing');
@@ -286,6 +292,7 @@ function parseCliArgs(argv: string[]): CliArgs {
   let pipelineTestingMode = false;
   let authOnly = false;
   let validateModel = false;
+  let scanReportPath: string | undefined;
   let resumeFromWorkspace: string | undefined;
 
   for (let i = 0; i < argv.length; i++) {
@@ -294,6 +301,12 @@ function parseCliArgs(argv: string[]): CliArgs {
       const nextArg = argv[i + 1];
       if (nextArg && !nextArg.startsWith('-')) {
         taskQueue = nextArg;
+        i++;
+      }
+    } else if (arg === '--scan-report') {
+      const nextArg = argv[i + 1];
+      if (nextArg && !nextArg.startsWith('-')) {
+        scanReportPath = nextArg;
         i++;
       }
     } else if (arg === '--workflow-id') {
@@ -355,6 +368,7 @@ function parseCliArgs(argv: string[]): CliArgs {
     pipelineTestingMode,
     authOnly,
     validateModel,
+    ...(scanReportPath && { scanReportPath }),
     ...(configPath && { configPath }),
     ...(customerOutputPath && { customerOutputPath }),
     ...(resumeFromWorkspace && { resumeFromWorkspace }),
@@ -590,7 +604,9 @@ function buildPipelineInput(
   args: CliArgs,
   workspace: WorkspaceResolution,
   orchestration: OrchestrationConfig,
+  sastSarif?: SarifRef,
 ): PipelineInput {
+  const agenticSastConfig = sastSarif !== undefined ? undefined : orchestration.agenticSast;
   return {
     webUrl: args.webUrl,
     repoPath: args.repoPath,
@@ -601,8 +617,9 @@ function buildPipelineInput(
     ...(workspace.isResume && args.resumeFromWorkspace && { resumeFromWorkspace: args.resumeFromWorkspace }),
     ...(workspace.terminatedWorkflows.length > 0 && { terminatedWorkflows: workspace.terminatedWorkflows }),
     ...(args.customerOutputPath !== undefined && { customerOutputPath: args.customerOutputPath }),
-    ...(orchestration.agenticSast !== undefined && { agenticSast: orchestration.agenticSast }),
+    ...(agenticSastConfig !== undefined && { agenticSast: agenticSastConfig }),
     ...(orchestration.exploit !== undefined && { exploit: orchestration.exploit }),
+    ...(sastSarif !== undefined && { sastSarif }),
     ...(args.authOnly && { authOnly: true }),
     ...(args.validateModel && { validateModel: true }),
   };
@@ -750,8 +767,40 @@ async function startScan(client: Client, connection: NativeConnection, args: Cli
       maxConcurrentActivityTaskExecutions: 25,
     });
 
+    // Ingest external scanner reports if provided
+    let sastSarifRef: SarifRef | undefined;
+    if (args.scanReportPath) {
+      const workspacesDir = path.resolve('./workspaces');
+      const sessionDir = path.join(workspacesDir, workspace.sessionId);
+      const shannonDir = path.join(sessionDir, '.shannon');
+      await mkdir(shannonDir, { recursive: true });
+
+      const engine = new ScannerIngestionEngine();
+      const ingestion = await engine.ingestPaths([args.scanReportPath]);
+
+      console.log(`\n================================================================================`);
+      console.log(`[scanners] Ingested ${ingestion.findings.length} findings from ${ingestion.reportsProcessed.length} report(s).`);
+      console.log(
+        `[scanners] Summary: SAST=${ingestion.summary.sast} | Secrets=${ingestion.summary.secret} | DAST=${ingestion.summary.dast} | SCA=${ingestion.summary.sca} | IaC=${ingestion.summary.iac_cloud}`,
+      );
+      console.log(`================================================================================\n`);
+
+      if (ingestion.findings.length > 0) {
+        const canonicalJsonPath = path.join(shannonDir, 'scanner-findings.json');
+        await writeFile(canonicalJsonPath, JSON.stringify(ingestion, null, 2), 'utf8');
+
+        const sarifDoc = ShannonScannerBridge.toCapellaSarif(ingestion.findings, path.basename(args.repoPath));
+        const sarifContent = JSON.stringify(sarifDoc, null, 2);
+        const sarifPath = path.join(shannonDir, 'scanner-findings.sarif');
+        await writeFile(sarifPath, sarifContent, 'utf8');
+
+        const sha256 = createHash('sha256').update(Buffer.from(sarifContent, 'utf8')).digest('hex');
+        sastSarifRef = { path: sarifPath, sha256 };
+      }
+    }
+
     // 3. Build the fixed-scope pipeline input and start worker polling in the background.
-    const input = buildPipelineInput(args, workspace, orchestration);
+    const input = buildPipelineInput(args, workspace, orchestration, sastSarifRef);
     const workerDone = worker.run();
 
     // 4. Submit workflow to the same task queue. Past this point the run exists in Temporal.

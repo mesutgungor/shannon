@@ -204,6 +204,7 @@ function parseStartArgs(argv: string[]): ParsedStartArgs {
       modelsConfig: ['--models-config'],
       output: ['-o', '--output'],
       workspace: ['-w', '--workspace'],
+      scanReport: ['-s', '--scan-report'],
     },
     booleans: {
       pipelineTesting: ['--pipeline-testing'],
@@ -266,6 +267,7 @@ function parseStartArgs(argv: string[]): ParsedStartArgs {
     ...(values.modelsConfig && { modelsConfig: values.modelsConfig }),
     ...(values.workspace && { workspace: values.workspace }),
     ...(values.output && { output: values.output }),
+    ...(values.scanReport && { scanReport: values.scanReport }),
   };
 }
 
