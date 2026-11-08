@@ -46,6 +46,7 @@ const MODEL_SUGGESTIONS: Readonly<Record<CuratedProviderId, readonly string[]>> 
   ],
   openai: ['gpt-6-sol', 'gpt-5.6-sol', 'gpt-5.5', 'gpt-5.4'],
   xai: ['grok-4.7'],
+  google: ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-2.5-pro', 'gemini-3.7-flash'],
   'amazon-bedrock': ['us.anthropic.claude-sonnet-4-6', 'us.anthropic.claude-opus-4-8', 'us.anthropic.claude-opus-4-7'],
 };
 
@@ -54,6 +55,7 @@ const MODEL_ID_PLACEHOLDER: Readonly<Record<CuratedProviderId, string>> = {
   anthropic: 'claude-sonnet-4-6',
   openai: 'gpt-6-sol',
   xai: 'grok-4.7',
+  google: 'gemini-3.8-flash',
   'amazon-bedrock': 'us.anthropic.claude-opus-4-8',
 };
 
@@ -76,6 +78,7 @@ export async function setup(): Promise<void> {
       { value: 'anthropic' as const, label: 'Anthropic', hint: 'Claude models - recommended' },
       { value: 'openai' as const, label: 'OpenAI', hint: 'GPT models' },
       { value: 'xai' as const, label: 'xAI', hint: 'Grok models' },
+      { value: 'google' as const, label: 'Google Gemini', hint: 'Gemini 2.5 Pro / Flash models' },
       { value: 'amazon-bedrock' as const, label: 'AWS Bedrock', hint: 'Claude models via AWS' },
       {
         value: CUSTOM_BASE_URL as typeof CUSTOM_BASE_URL,
@@ -142,6 +145,8 @@ async function setupProvider(provider: CuratedProviderId): Promise<ShannonConfig
       return { openai: { api_key: await promptSecret('Enter your OpenAI API key') } };
     case 'xai':
       return { xai: { api_key: await promptSecret('Enter your xAI API key') } };
+    case 'google':
+      return { google: { api_key: await promptSecret('Enter your Gemini API key (or Google AI Studio key)') } };
   }
 }
 

@@ -51,7 +51,7 @@ import { MODELS_CONFIG_PATH } from '../paths.js';
  * gate its "Other provider" setup option. A curated provider missing from one
  * copy is silently treated as generic on that side.
  */
-export const CURATED_PROVIDERS = ['anthropic', 'openai', 'xai', 'amazon-bedrock'] as const;
+export const CURATED_PROVIDERS = ['anthropic', 'openai', 'xai', 'google', 'amazon-bedrock'] as const;
 
 export type CuratedProviderId = (typeof CURATED_PROVIDERS)[number];
 
@@ -77,6 +77,7 @@ export const PROVIDER_API_KEY_ENV: Readonly<Record<CuratedProviderId, readonly s
   anthropic: ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN'],
   openai: ['OPENAI_API_KEY'],
   xai: ['XAI_API_KEY'],
+  google: ['GEMINI_API_KEY', 'GOOGLE_API_KEY'],
   'amazon-bedrock': ['AWS_BEARER_TOKEN_BEDROCK'],
 };
 
@@ -244,10 +245,60 @@ export async function createModelRuntime(providerId: string, apiKey: string | un
     modelRefreshTimeoutMs: 10_000,
   };
 
-  if (piAuthPresent()) {
-    return ModelRuntime.create({ ...modelSources, authPath: piAuthPath() });
+  const runtime = piAuthPresent()
+    ? await ModelRuntime.create({ ...modelSources, authPath: piAuthPath() })
+    : await ModelRuntime.create({ ...modelSources, credentials: new RuntimeCredentialStore(providerId, apiKey) });
+
+  if (providerId === 'google') {
+    const existing = runtime.getModels().filter((x) => x.provider === 'google');
+    runtime.registerProvider('google', {
+      models: [
+        ...existing,
+        {
+          id: 'gemini-3.8-flash',
+          name: 'Gemini 3.8 Flash',
+          api: 'google-generative-ai',
+          baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+          reasoning: true,
+          input: ['text', 'image'],
+          cost: { input: 0.15, output: 0.6, cacheRead: 0.04, cacheWrite: 0 },
+          contextWindow: 1048576,
+          maxTokens: 65536,
+        },
+      ],
+    });
+
+    const injectSafetySettings = (options: any) => ({
+      ...options,
+      onPayload: async (params: any, m: any) => {
+        if (params?.config) {
+          params.config.safetySettings = [
+            { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+            { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+            { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+            { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+            { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_NONE' },
+          ];
+        }
+        if (options?.onPayload) {
+          return options.onPayload(params, m);
+        }
+        return params;
+      },
+    });
+
+    const originalStream = runtime.stream.bind(runtime);
+    runtime.stream = function (model: any, context: any, options: any) {
+      return originalStream(model, context, injectSafetySettings(options));
+    };
+
+    const originalStreamSimple = runtime.streamSimple.bind(runtime);
+    runtime.streamSimple = function (model: any, context: any, options: any) {
+      return originalStreamSimple(model, context, injectSafetySettings(options));
+    };
   }
-  return ModelRuntime.create({ ...modelSources, credentials: new RuntimeCredentialStore(providerId, apiKey) });
+
+  return runtime;
 }
 
 export interface ModelSelection {

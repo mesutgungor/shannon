@@ -15,11 +15,12 @@ The provider half decides where the request goes, which credential is used, and 
 | Anthropic | `anthropic` | `SHANNON_AI_API_KEY` (or `CLAUDE_CODE_OAUTH_TOKEN`) |
 | OpenAI | `openai` | `SHANNON_AI_API_KEY` |
 | xAI | `xai` | `SHANNON_AI_API_KEY` |
+| Google | `google` | `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) |
 | AWS Bedrock | `amazon-bedrock` | `AWS_REGION` and `AWS_BEARER_TOKEN_BEDROCK` |
 
 `SHANNON_AI_API_KEY` holds the key for whichever provider `SHANNON_AI_MODEL` names. Bedrock is the exception — it authenticates through its `AWS_` variables only. If `SHANNON_AI_MODEL` is unset, Shannon uses `anthropic:claude-sonnet-4-6`.
 
-Anthropic, OpenAI, and xAI also accept their native variables (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `XAI_API_KEY`); if one of those is set, it is used instead of `SHANNON_AI_API_KEY`.
+Anthropic, OpenAI, xAI, and Google also accept their native variables (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `XAI_API_KEY`, `GEMINI_API_KEY`, `GOOGLE_API_KEY`); if one of those is set, it is used instead of `SHANNON_AI_API_KEY`.
 
 Shannon forwards only the selected provider's credential into the scan container. Keys for other providers stay on your machine.
 
@@ -70,6 +71,7 @@ These are the models `npx @keygraph/shannon setup` offers, best-first. They are 
 | `anthropic` | `claude-sonnet-5`, `claude-opus-5`, `claude-sonnet-4-6`, `claude-opus-4-8`, `claude-opus-4-7`, `claude-haiku-4-5-20251001` |
 | `openai` | `gpt-6-sol`, `gpt-5.6-sol`, `gpt-5.5`, `gpt-5.4` |
 | `xai` | `grok-4.7` |
+| `google` | `gemini-3.8-flash`, `gemini-flash-latest`, `gemini-2.5-pro` |
 | `amazon-bedrock` | `us.anthropic.claude-sonnet-4-6`, `us.anthropic.claude-opus-4-8`, `us.anthropic.claude-opus-4-7` |
 
 Bedrock IDs are region-prefixed and must be enabled in your account, so the ID that works for you may differ from the one listed here.
@@ -97,6 +99,13 @@ xAI:
 ```bash
 export SHANNON_AI_API_KEY=xai-...
 export SHANNON_AI_MODEL=xai:grok-4.7
+```
+
+Google Gemini:
+
+```bash
+export GEMINI_API_KEY=AIzaSy...
+export SHANNON_AI_MODEL=google:gemini-3.8-flash
 ```
 
 Source-build mode reads the same variables from a `.env` file.

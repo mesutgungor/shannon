@@ -12,6 +12,7 @@ export interface ShannonConfig {
   anthropic?: { api_key?: string; oauth_token?: string };
   openai?: { api_key?: string };
   xai?: { api_key?: string };
+  google?: { api_key?: string };
   bedrock?: { region?: string; token?: string };
   /** Generic credential for any provider Shannon does not curate. Maps to SHANNON_AI_API_KEY. */
   provider?: { api_key?: string };

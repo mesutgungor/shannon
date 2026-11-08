@@ -278,7 +278,12 @@ async function probeCredentialsWithPi(
     session?.dispose();
   }
 
-  if (failedTurn) return err(providerTurnError(failedTurn, `${authType} validation failed`));
+  if (failedTurn) {
+    const rawError = failedTurn.errorMessage ? `: ${failedTurn.errorMessage}` : '';
+    const error = providerTurnError(failedTurn, `${authType} validation failed${rawError}`);
+    error.message = `${authType} validation failed${rawError}`;
+    return err(error);
+  }
   return ok(undefined);
 }
 
@@ -287,6 +292,7 @@ const PROVIDER_CREDENTIAL_HINT: Readonly<Record<CuratedProviderId, string>> = {
   anthropic: 'ANTHROPIC_API_KEY (or CLAUDE_CODE_OAUTH_TOKEN)',
   openai: 'OPENAI_API_KEY',
   xai: 'XAI_API_KEY',
+  google: 'GEMINI_API_KEY (or GOOGLE_API_KEY)',
   'amazon-bedrock': 'AWS_BEARER_TOKEN_BEDROCK and AWS_REGION',
 };
 

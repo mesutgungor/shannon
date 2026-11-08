@@ -11,7 +11,7 @@
  * and setup flows. Any other pi provider is reachable via the generic credential
  * path. Mirrors CURATED_PROVIDERS in apps/worker/src/ai/models.ts.
  */
-export const CURATED_PROVIDERS = ['anthropic', 'openai', 'xai', 'amazon-bedrock'] as const;
+export const CURATED_PROVIDERS = ['anthropic', 'openai', 'xai', 'google', 'amazon-bedrock'] as const;
 
 export type CuratedProviderId = (typeof CURATED_PROVIDERS)[number];
 
@@ -30,6 +30,7 @@ export const PROVIDER_API_KEY_ENV: Readonly<Record<CuratedProviderId, readonly s
   anthropic: ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN'],
   openai: ['OPENAI_API_KEY'],
   xai: ['XAI_API_KEY'],
+  google: ['GEMINI_API_KEY', 'GOOGLE_API_KEY'],
   'amazon-bedrock': ['AWS_BEARER_TOKEN_BEDROCK'],
 };
 
@@ -38,6 +39,7 @@ export const PROVIDER_EXTRA_ENV: Readonly<Record<CuratedProviderId, readonly str
   anthropic: [],
   openai: [],
   xai: [],
+  google: [],
   'amazon-bedrock': ['AWS_REGION'],
 };
 
@@ -46,6 +48,7 @@ export const PROVIDER_CREDENTIAL_HINT: Readonly<Record<CuratedProviderId, string
   anthropic: 'ANTHROPIC_API_KEY (or CLAUDE_CODE_OAUTH_TOKEN)',
   openai: 'OPENAI_API_KEY',
   xai: 'XAI_API_KEY',
+  google: 'GEMINI_API_KEY (or GOOGLE_API_KEY)',
   'amazon-bedrock': 'AWS_REGION and AWS_BEARER_TOKEN_BEDROCK',
 };
 
